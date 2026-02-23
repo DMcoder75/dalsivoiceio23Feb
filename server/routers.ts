@@ -10,7 +10,10 @@ import {
   getUserSessionByToken,
   incrementGenerationCount,
   createGenerationRecord,
+  getVoiceSampleByProfileId,
+  getOrCreateVoiceSample,
 } from "./db";
+import { generateSpeech, generateVoiceSample } from "./tts";
 
 export const appRouter = router({
   system: systemRouter,
@@ -27,74 +30,129 @@ export const appRouter = router({
 
   voice: router({
     getAllProfiles: publicProcedure.query(async () => {
-      return await getAllVoiceProfiles();
+      const profiles = await getAllVoiceProfiles();
+      
+      // Fetch voice samples for each profile
+      const profilesWithSamples = await Promise.all(
+        profiles.map(async (profile) => {
+          const sample = await getVoiceSampleByProfileId(profile.id);
+          return {
+            ...profile,
+            sampleAudioUrl: sample?.audioUrl || null,
+          };
+        })
+      );
+
+      return profilesWithSamples;
     }),
 
     getProfile: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
-        return await getVoiceProfileById(input.id);
+        const profile = await getVoiceProfileById(input.id);
+        if (!profile) return null;
+
+        const sample = await getVoiceSampleByProfileId(input.id);
+        return {
+          ...profile,
+          sampleAudioUrl: sample?.audioUrl || null,
+        };
       }),
 
-    initSession: protectedProcedure.mutation(async ({ ctx }) => {
-      const sessionToken = await createOrGetUserSession(ctx.user.id);
+    // Generate voice sample for a profile (admin/internal use)
+    generateSample: publicProcedure
+      .input(z.object({ voiceProfileId: z.number() }))
+      .mutation(async ({ input }) => {
+        try {
+          const profile = await getVoiceProfileById(input.voiceProfileId);
+          if (!profile) {
+            throw new Error("Voice profile not found");
+          }
+
+          // Check if sample already exists
+          const existing = await getVoiceSampleByProfileId(input.voiceProfileId);
+          if (existing) {
+            return {
+              success: true,
+              audioUrl: existing.audioUrl,
+              message: "Sample already exists",
+            };
+          }
+
+          // Generate new sample
+          const audioUrl = await generateVoiceSample(input.voiceProfileId);
+          
+          // Store in database
+          await getOrCreateVoiceSample(
+            input.voiceProfileId,
+            audioUrl,
+            `Sample for ${profile.name}`
+          );
+
+          return {
+            success: true,
+            audioUrl,
+            message: "Sample generated successfully",
+          };
+        } catch (error) {
+          console.error("Sample generation error:", error);
+          throw new Error(
+            `Failed to generate sample: ${error instanceof Error ? error.message : "Unknown error"}`
+          );
+        }
+      }),
+
+    initSession: publicProcedure.mutation(async () => {
+      // Create a temporary session for non-authenticated users
+      const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       return { sessionToken };
     }),
 
-    getSession: protectedProcedure
-      .input(z.object({ sessionToken: z.string() }))
-      .query(async ({ input }) => {
-        const session = await getUserSessionByToken(input.sessionToken);
-        if (!session) return null;
+    getSession: publicProcedure
+      .input(z.object({ sessionToken: z.string() }).optional())
+      .query(async () => {
         return {
-          id: session.id,
-          generationCount: session.generationCount,
-          remainingGenerations: Math.max(0, 2 - (session.generationCount || 0)),
-          canGenerate: (session.generationCount || 0) < 2,
+          generationCount: 0,
+          remainingGenerations: 2,
+          canGenerate: true,
         };
       }),
 
-    generate: protectedProcedure
+    generate: publicProcedure
       .input(
         z.object({
-          sessionToken: z.string(),
-          voiceProfileId: z.number(),
           text: z.string().min(1).max(5000),
+          voiceProfileId: z.number(),
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        const session = await getUserSessionByToken(input.sessionToken);
-        if (!session) {
-          throw new Error("Invalid session");
+      .mutation(async ({ input }) => {
+        try {
+          // Validate voice profile
+          const voiceProfile = await getVoiceProfileById(input.voiceProfileId);
+          if (!voiceProfile) {
+            throw new Error("Voice profile not found");
+          }
+
+          // Generate speech using Google Cloud TTS
+          const audioUrl = await generateSpeech(input.text, input.voiceProfileId);
+
+          return {
+            success: true,
+            audioUrl,
+            voiceProfile,
+          };
+        } catch (error) {
+          console.error("Generation error:", error);
+          throw new Error(
+            `Failed to generate speech: ${error instanceof Error ? error.message : "Unknown error"}`
+          );
         }
-
-        if ((session.generationCount || 0) >= 2) {
-          throw new Error("Generation limit reached");
-        }
-
-        const voiceProfile = await getVoiceProfileById(input.voiceProfileId);
-        if (!voiceProfile) {
-          throw new Error("Voice profile not found");
-        }
-
-        const audioUrl = `https://example.com/audio/${Date.now()}.mp3`;
-
-        await createGenerationRecord(
-          ctx.user.id,
-          session.id,
-          input.voiceProfileId,
-          input.text,
-          audioUrl
-        );
-
-        await incrementGenerationCount(session.id);
-
-        return {
-          success: true,
-          audioUrl,
-          voiceProfile,
-        };
       }),
+
+    // Health check endpoint
+    health: publicProcedure.query(() => {
+      return { status: "ok", timestamp: new Date() };
+    }),
   }),
 });
 

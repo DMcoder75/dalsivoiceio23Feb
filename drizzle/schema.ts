@@ -76,3 +76,17 @@ export const generationHistory = mysqlTable("generationHistory", {
 
 export type GenerationHistory = typeof generationHistory.$inferSelect;
 export type InsertGenerationHistory = typeof generationHistory.$inferInsert;
+
+/**
+ * Voice samples cache for preview audio
+ */
+export const voiceSamples = mysqlTable("voiceSamples", {
+  id: int("id").autoincrement().primaryKey(),
+  voiceProfileId: int("voiceProfileId").notNull(),
+  audioUrl: text("audioUrl").notNull(),
+  sampleText: text("sampleText").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VoiceSample = typeof voiceSamples.$inferSelect;
+export type InsertVoiceSample = typeof voiceSamples.$inferInsert;

@@ -1,6 +1,6 @@
 import { eq, and, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, voiceProfiles, userSessions, generationHistory, InsertUserSession, InsertGenerationHistory } from "../drizzle/schema";
+import { InsertUser, users, voiceProfiles, userSessions, generationHistory, voiceSamples, InsertUserSession, InsertGenerationHistory, InsertVoiceSample } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -218,6 +218,62 @@ export async function createGenerationRecord(
     console.error("[Database] Failed to create generation record:", error);
     return null;
   }
+}
+
+/**
+ * Get or create voice sample
+ */
+export async function getOrCreateVoiceSample(voiceProfileId: number, audioUrl: string, sampleText: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get voice sample: database not available");
+    return null;
+  }
+
+  try {
+    // Check if sample already exists
+    const existing = await db
+      .select()
+      .from(voiceSamples)
+      .where(eq(voiceSamples.voiceProfileId, voiceProfileId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return existing[0];
+    }
+
+    // Create new sample
+    const sample: InsertVoiceSample = {
+      voiceProfileId,
+      audioUrl,
+      sampleText,
+    };
+
+    await db.insert(voiceSamples).values(sample);
+    return sample;
+  } catch (error) {
+    console.error("[Database] Failed to create voice sample:", error);
+    return null;
+  }
+}
+
+/**
+ * Get voice sample by profile ID
+ */
+export async function getVoiceSampleByProfileId(voiceProfileId: number) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get voice sample: database not available");
+    return undefined;
+  }
+
+  const result = await db
+    .select()
+    .from(voiceSamples)
+    .where(eq(voiceSamples.voiceProfileId, voiceProfileId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
 }
 
 /**

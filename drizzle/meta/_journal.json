@@ -15,6 +15,13 @@
       "when": 1771770739751,
       "tag": "0001_green_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1771811022022,
+      "tag": "0002_great_celestials",
+      "breakpoints": true
     }
   ]
 }
