@@ -26,13 +26,15 @@
 - [x] Build avatar display component
 - [x] Create audio player/preview component
 - [x] Implement download functionality UI
+- [x] Add voice sample preview on narrator cards
 
 ## Text-to-Speech Integration
-- [ ] Research and integrate TTS API (Google Cloud, AWS Polly, or similar)
-- [ ] Implement text validation and sanitization
-- [ ] Add audio generation with proper error handling
-- [ ] Implement audio format conversion (MP3, WAV)
-- [ ] Add audio caching strategy
+- [x] Research and integrate TTS API (Google Cloud Text-to-Speech)
+- [x] Implement text validation and sanitization
+- [x] Add audio generation with proper error handling
+- [x] Implement audio format conversion (MP3, WAV)
+- [x] Add audio caching strategy
+- [x] Generate and cache voice samples for each narrator
 
 ## Session & Usage Tracking
 - [ ] Implement session-based generation counter

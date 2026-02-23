@@ -1,7 +1,7 @@
-import { Button } from "@/components/ui/button";
+"use client";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Volume2, Download, Play, Pause, RotateCcw, Mic2, Sparkles, ArrowLeft } from "lucide-react";
+import { Loader2, Volume2, Download, Play, Pause, RotateCcw, Mic2, Sparkles, ArrowLeft, Music } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
@@ -14,6 +14,7 @@ interface VoiceProfile {
   voiceType: string;
   avatarUrl: string;
   description: string;
+  sampleAudioUrl?: string;
 }
 
 // Simple avatar placeholder generator
@@ -39,7 +40,11 @@ export default function Generator() {
   const [voiceProfiles, setVoiceProfiles] = useState<VoiceProfile[]>([]);
   const [generationCount, setGenerationCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [playingSampleId, setPlayingSampleId] = useState<number | null>(null);
+  const [playingMainSample, setPlayingMainSample] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const sampleAudioRef = useRef<HTMLAudioElement>(null);
+  const mainSampleAudioRef = useRef<HTMLAudioElement>(null);
 
   // Fetch voice profiles on mount
   useEffect(() => {
@@ -128,6 +133,58 @@ export default function Generator() {
     }
   };
 
+  const handlePlaySample = (sampleUrl: string | undefined, voiceId: number) => {
+    if (!sampleUrl) {
+      toast.info("Sample not available for this voice yet");
+      return;
+    }
+
+    if (playingSampleId === voiceId && sampleAudioRef.current) {
+      if (sampleAudioRef.current.paused) {
+        sampleAudioRef.current.play();
+      } else {
+        sampleAudioRef.current.pause();
+      }
+    } else {
+      if (sampleAudioRef.current) {
+        sampleAudioRef.current.pause();
+      }
+      setPlayingSampleId(voiceId);
+      sampleAudioRef.current = new Audio(sampleUrl);
+      sampleAudioRef.current.onended = () => setPlayingSampleId(null);
+      sampleAudioRef.current.play().catch(err => {
+        console.error("Error playing sample:", err);
+        toast.error("Failed to play sample");
+      });
+    }
+  };
+
+  const handlePlayMainSample = (sampleUrl: string | undefined) => {
+    if (!sampleUrl) {
+      toast.info("Sample not available for this voice yet");
+      return;
+    }
+
+    if (mainSampleAudioRef.current) {
+      if (mainSampleAudioRef.current.paused) {
+        mainSampleAudioRef.current.play();
+        setPlayingMainSample(true);
+      } else {
+        mainSampleAudioRef.current.pause();
+        setPlayingMainSample(false);
+      }
+    } else {
+      mainSampleAudioRef.current = new Audio(sampleUrl);
+      mainSampleAudioRef.current.onended = () => setPlayingMainSample(false);
+      mainSampleAudioRef.current.onplay = () => setPlayingMainSample(true);
+      mainSampleAudioRef.current.onpause = () => setPlayingMainSample(false);
+      mainSampleAudioRef.current.play().catch(err => {
+        console.error("Error playing sample:", err);
+        toast.error("Failed to play sample");
+      });
+    }
+  };
+
   const selectedVoice = voiceProfiles.find(v => v.id === selectedVoiceId);
 
   if (loading) {
@@ -190,26 +247,51 @@ export default function Generator() {
                   {voiceProfiles.map((profile) => {
                     const isSelected = selectedVoiceId === profile.id;
                     const gradientClass = getAvatarPlaceholder(profile.id);
+                    const isSamplePlaying = playingSampleId === profile.id;
                     return (
-                      <button
+                      <div
                         key={profile.id}
-                        onClick={() => setSelectedVoiceId(profile.id)}
-                        className={`w-full text-left p-3 rounded-lg transition-all duration-200 ${
+                        className={`rounded-lg transition-all duration-200 overflow-hidden ${
                           isSelected
                             ? "bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-400/50 shadow-lg shadow-purple-500/20"
                             : "bg-slate-800/50 border border-slate-700/50 hover:bg-slate-800/80 hover:border-purple-500/30"
                         }`}
                       >
-                        <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setSelectedVoiceId(profile.id)}
+                          className="w-full text-left p-3 flex items-center gap-3"
+                        >
                           <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${gradientClass} flex-shrink-0 flex items-center justify-center text-sm font-bold`}>
                             {profile.name.charAt(0)}
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="font-semibold text-sm truncate">{profile.name}</p>
                             <p className="text-xs text-purple-300/70 truncate">{profile.accent}</p>
                           </div>
-                        </div>
-                      </button>
+                        </button>
+                        
+                        {/* Voice Sample Player */}
+                        {isSelected && (
+                          <div className="px-3 pb-3 border-t border-purple-400/20">
+                            <button
+                              onClick={() => handlePlaySample(profile.sampleAudioUrl, profile.id)}
+                              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg transition text-sm font-medium text-purple-200"
+                            >
+                              {isSamplePlaying ? (
+                                <>
+                                  <Pause className="w-4 h-4" />
+                                  Pause Sample
+                                </>
+                              ) : (
+                                <>
+                                  <Music className="w-4 h-4" />
+                                  Play Sample
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -222,7 +304,7 @@ export default function Generator() {
                 {/* Selected Voice Info */}
                 {selectedVoice && (
                   <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl p-6 backdrop-blur">
-                    <div className="flex items-start gap-4">
+                    <div className="flex items-start gap-4 mb-4">
                       <div className={`w-16 h-16 rounded-lg bg-gradient-to-br ${getAvatarPlaceholder(selectedVoice.id)} flex items-center justify-center text-2xl font-bold flex-shrink-0`}>
                         {selectedVoice.name.charAt(0)}
                       </div>
@@ -242,6 +324,29 @@ export default function Generator() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Voice Sample Preview in Main Card */}
+                    {selectedVoice.sampleAudioUrl && (
+                      <div className="border-t border-purple-400/20 pt-4">
+                        <p className="text-sm font-semibold text-purple-300 mb-3">Voice Sample Preview</p>
+                        <button
+                          onClick={() => handlePlayMainSample(selectedVoice.sampleAudioUrl)}
+                          className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-purple-500/30 to-pink-500/30 hover:from-purple-500/40 hover:to-pink-500/40 rounded-lg transition font-medium text-purple-200 border border-purple-400/30"
+                        >
+                          {playingMainSample ? (
+                            <>
+                              <Pause className="w-5 h-5" />
+                              Pause Sample
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-5 h-5" />
+                              Play Sample
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -253,107 +358,58 @@ export default function Generator() {
                   <Textarea
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder="Enter the text you want to convert to speech... (max 500 characters)"
-                    maxLength={500}
-                    className="min-h-40 resize-none bg-slate-900/50 border-slate-600/50 text-white placeholder:text-slate-400"
+                    placeholder="Enter the text you want to convert to speech..."
+                    className="w-full h-40 bg-slate-900/50 border-slate-600/50 text-white placeholder-slate-400 rounded-lg resize-none focus:border-purple-400/50 focus:ring-purple-400/20"
                   />
-                  <div className="text-xs text-purple-300/70 mt-2 text-right">
-                    {text.length}/500 characters
+                  <div className="mt-3 flex justify-between items-center">
+                    <span className="text-xs text-purple-300/70">
+                      {text.length} characters
+                    </span>
+                    <span className="text-xs text-purple-300/70">
+                      Max 5000 characters
+                    </span>
                   </div>
                 </div>
 
                 {/* Generate Button */}
-                <Button
+                <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || generationCount >= 2 || !text.trim()}
-                  size="lg"
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/50"
+                  disabled={isGenerating || generationCount >= 2}
+                  className="w-full py-4 px-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-purple-500/30"
                 >
                   {isGenerating ? (
                     <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin" />
                       Generating...
                     </>
                   ) : (
                     <>
-                      <Volume2 className="w-5 h-5 mr-2" />
+                      <Volume2 className="w-5 h-5" />
                       Generate Voice
                     </>
                   )}
-                </Button>
-
-                {generationCount >= 2 && (
-                  <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-300 text-sm">
-                    <p className="font-semibold mb-1">Limit Reached</p>
-                    <p>You have used both free generations for this session. Start a new session to generate more.</p>
-                  </div>
-                )}
+                </button>
 
                 {/* Audio Player */}
                 {audioUrl && (
                   <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl p-6 backdrop-blur">
-                    <h3 className="font-semibold mb-4 flex items-center gap-2">
+                    <h3 className="font-bold mb-4 flex items-center gap-2">
                       <Volume2 className="w-5 h-5 text-purple-400" />
                       Generated Audio
                     </h3>
-                    
                     <audio
                       ref={audioRef}
                       src={audioUrl}
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
-                      className="w-full mb-4 rounded-lg"
                       controls
+                      className="w-full mb-4 rounded-lg"
                     />
-
-                    <div className="flex gap-3 flex-wrap">
-                      <Button
-                        onClick={() => {
-                          if (isPlaying) {
-                            audioRef.current?.pause();
-                          } else {
-                            audioRef.current?.play();
-                          }
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 border-purple-500/50 text-purple-300 hover:bg-purple-500/20"
-                      >
-                        {isPlaying ? (
-                          <>
-                            <Pause className="w-4 h-4 mr-2" />
-                            Pause
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-4 h-4 mr-2" />
-                            Play
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        onClick={handleDownload}
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 border-purple-500/50 text-purple-300 hover:bg-purple-500/20"
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setAudioUrl(null);
-                          setText("");
-                          setIsPlaying(false);
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 border-purple-500/50 text-purple-300 hover:bg-purple-500/20"
-                      >
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Reset
-                      </Button>
-                    </div>
+                    <button
+                      onClick={handleDownload}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                      <Download className="w-5 h-5" />
+                      Download Audio
+                    </button>
                   </div>
                 )}
               </div>

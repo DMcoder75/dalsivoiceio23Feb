@@ -23,13 +23,13 @@ function getTTSClient() {
 
 // Map voice profiles to Google Cloud voices
 const voiceMapping: Record<number, { languageCode: string; name: string; ssmlGender: string }> = {
-  1: { languageCode: "en-US", name: "en-US-Neural2-C", ssmlGender: "MALE" }, // US Young Male
-  2: { languageCode: "en-US", name: "en-US-Neural2-E", ssmlGender: "FEMALE" }, // US Professional Female
+  1: { languageCode: "en-US", name: "en-US-Neural2-A", ssmlGender: "MALE" }, // US Young Male
+  2: { languageCode: "en-US", name: "en-US-Neural2-C", ssmlGender: "FEMALE" }, // US Professional Female
   3: { languageCode: "en-GB", name: "en-GB-Neural2-B", ssmlGender: "MALE" }, // UK Mature Male
   4: { languageCode: "en-GB", name: "en-GB-Neural2-F", ssmlGender: "FEMALE" }, // UK Casual Female
   5: { languageCode: "en-AU", name: "en-AU-Neural2-B", ssmlGender: "MALE" }, // Australian Casual Male
-  6: { languageCode: "en-IN", name: "en-IN-Neural2-C", ssmlGender: "FEMALE" }, // Indian Professional Female
-  7: { languageCode: "en-US", name: "en-US-Neural2-A", ssmlGender: "NEUTRAL" }, // Non-binary Young
+  6: { languageCode: "en-IN", name: "en-IN-Neural2-B", ssmlGender: "FEMALE" }, // Indian Professional Female
+  7: { languageCode: "en-US", name: "en-US-Neural2-E", ssmlGender: "FEMALE" }, // Non-binary Young
 };
 
 // Voice sample texts for preview
